@@ -1,4 +1,7 @@
-import torch, os
+# vi: set ft=python sts=4 ts=4 sw=4 et:
+
+import os
+import torch
 
 def mask_(matrices, maskval=0.0, mask_diagonal=True):
     """
@@ -29,7 +32,8 @@ def d(tensor=None):
 
 def here(subpath=None):
     """
-    :return: the path in which the package resides (the directory containing the 'former' dir)
+    Return the path in which the package resides (the directory
+    containing the 'former' dir)
     """
     if subpath is None:
         return os.path.abspath(os.path.join(os.path.dirname(__file__), '../..'))
@@ -38,3 +42,4 @@ def here(subpath=None):
 
 def contains_nan(tensor):
     return bool((tensor != tensor).sum() > 0)
+

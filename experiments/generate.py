@@ -1,20 +1,24 @@
-from _context import former
-from former import util, GTransformer
+# vi: set ft=python sts=4 t=4 sw=4 et:
 
-from util import d, here
+import sys
+import math
+import gzip
+import random
+import tqdm
+from argparse import ArgumentParser
 
+import numpy as np
 import torch
 from torch import nn
 from torch.autograd import Variable
 import torch.nn.functional as F
 import torch.distributions as dist
-
-import numpy as np
-
-from argparse import ArgumentParser
 from torch.utils.tensorboard import SummaryWriter
 
-import random, tqdm, sys, math, gzip
+from _context import former
+from former import util, GTransformer
+from util import d, here
+
 
 # NB, the enwik8 data contains tokens from 9 to 240, but well round up to the nearest
 # power of two.
@@ -56,14 +60,15 @@ def enwik8(path, n_train=int(90e6), n_valid=int(5e6), n_test=int(5e6)):
         return torch.from_numpy(trX), torch.from_numpy(vaX), torch.from_numpy(teX)
 
 def go(arg):
-
+    """Start training the model."""
     if arg.seed < 0:
         seed = random.randint(0, 1000000)
         print('random seed: ', seed)
     else:
         torch.manual_seed(arg.seed)
 
-    tbw = SummaryWriter(log_dir=arg.tb_dir) # Tensorboard logging
+    # Tensorboard logging
+    tbw = SummaryWriter(log_dir=arg.tb_dir)
 
     # load the data (validation unless arg.final is true, then test)
     arg.data = here('data/enwik8.gz') if arg.data is None else arg.data
@@ -73,7 +78,14 @@ def go(arg):
                             if arg.final else (data_train, data_val)
 
     # create the model
-    model = GTransformer(emb=arg.embedding_size, heads=arg.num_heads, depth=arg.depth, seq_length=arg.context, num_tokens=NUM_TOKENS, wide=arg.wide)
+    model = GTransformer(
+        emb=arg.embedding_size,
+        heads=arg.num_heads,
+        depth=arg.depth,
+        seq_length=arg.context,
+        num_tokens=NUM_TOKENS,
+        wide=arg.wide,
+    )
     if torch.cuda.is_available():
         model.cuda()
 
@@ -193,89 +205,114 @@ def go(arg):
                 print()
 
 if __name__ == "__main__":
-
     ## Parse the command line options
     parser = ArgumentParser()
 
-    parser.add_argument("-N", "--num-batches",
-                        dest="num_batches",
-                        help="Number of batches to train on. Each batch contains randomly sampled subsequences of the data.",
-                        default=1_000_000, type=int)
+    parser.add_argument(
+        "-N", "--num-batches", dest="num_batches",
+        help="Number of batches to train on. Each batch contains randomly sampled subsequences of the data.",
+        default=1_000_000, type=int,
+    )
 
-    parser.add_argument("-b", "--batch-size",
-                        dest="batch_size",
-                        help="The batch size.",
-                        default=32, type=int)
+    parser.add_argument(
+        "-b", "--batch-size", dest="batch_size",
+        help="The batch size.",
+        default=32, type=int,
+    )
 
-    parser.add_argument("-D", "--data", dest="data",
-                        help="Data file. Will be read as a string of 8-bit characters.",
-                        default=None)
+    parser.add_argument(
+        "-D", "--data", dest="data",
+        help="Data file. Will be read as a string of 8-bit characters.",
+        default=None,
+    )
 
-    parser.add_argument("-l", "--learn-rate",
-                        dest="lr",
-                        help="Learning rate",
-                        default=0.0001, type=float)
+    parser.add_argument(
+        "-l", "--learn-rate", dest="lr",
+        help="Learning rate",
+        default=0.0001, type=float,
+    )
 
-    parser.add_argument("-T", "--tb_dir", dest="tb_dir",
-                        help="Tensorboard logging directory",
-                        default='./runs')
+    parser.add_argument(
+        "-T", "--tb_dir", dest="tb_dir",
+        help="Tensorboard logging directory",
+        default='./runs',
+    )
 
-    parser.add_argument("-f", "--final", dest="final",
-                        help="Whether to run on the real test set (if not included, the validation set is used).",
-                        action="store_true")
+    parser.add_argument(
+        "-f", "--final", dest="final",
+        help="Whether to run on the real test set (if not included, the validation set is used).",
+        action="store_true",
+    )
 
-    parser.add_argument("-E", "--embedding", dest="embedding_size",
-                        help="Size of the character embeddings.",
-                        default=128, type=int)
+    parser.add_argument(
+        "-E", "--embedding", dest="embedding_size",
+        help="Size of the character embeddings.",
+        default=128, type=int,
+    )
 
-    parser.add_argument("-H", "--heads", dest="num_heads",
-                        help="Number of attention heads.",
-                        default=8, type=int)
+    parser.add_argument(
+        "-H", "--heads", dest="num_heads",
+        help="Number of attention heads.",
+        default=8, type=int,
+    )
 
-    parser.add_argument("-C", "--context", dest="context",
-                        help="Length of the sequences extracted from the corpus (and the context used during inference).",
-                        default=256, type=int)
+    parser.add_argument(
+        "-C", "--context", dest="context",
+        help="Length of the sequences extracted from the corpus (and the context used during inference).",
+        default=256, type=int,
+    )
 
-    parser.add_argument("-d", "--depth", dest="depth",
-                        help="Depth of the network (nr of self-attention layers)",
-                        default=12, type=int)
+    parser.add_argument(
+        "-d", "--depth", dest="depth",
+        help="Depth of the network (nr of self-attention layers)",
+        default=12, type=int,
+    )
 
-    parser.add_argument("-r", "--random-seed",
-                        dest="seed",
-                        help="RNG seed. Negative for random",
-                        default=1, type=int)
+    parser.add_argument(
+        "-r", "--random-seed", dest="seed",
+        help="RNG seed. Negative for random",
+        default=1, type=int,
+    )
 
-    parser.add_argument("--test-every",
-                        dest="test_every",
-                        help="How many batches between tests.",
-                        default=1500, type=int)
+    parser.add_argument(
+        "--test-every", dest="test_every",
+        help="How many batches between tests.",
+        default=1500, type=int,
+    )
 
-    parser.add_argument("--test-subset",
-                        dest="test_subset",
-                        help="A subset for the validation tests.",
-                        default=100000, type=int)
+    parser.add_argument(
+        "--test-subset", dest="test_subset",
+        help="A subset for the validation tests.",
+        default=100000, type=int,
+    )
 
-    parser.add_argument("--test-batchsize",
-                        dest="test_batchsize",
-                        help="Batch size for computing the validation loss. This can be a bit bigger than the training batch size.",
-                        default=64, type=int)
+    parser.add_argument(
+        "--test-batchsize", dest="test_batchsize",
+        help="Batch size for computing the validation loss. This can be a bit bigger than the training batch size.",
+        default=64, type=int,
+    )
 
-    parser.add_argument("--gradient-clipping",
-                        dest="gradient_clipping",
-                        help="Gradient clipping.",
-                        default=1.0, type=float)
+    parser.add_argument(
+        "--gradient-clipping", dest="gradient_clipping",
+        help="Gradient clipping.",
+        default=1.0, type=float,
+    )
 
-    parser.add_argument("--lr-warmup",
-                        dest="lr_warmup",
-                        help="Learning rate warmup.",
-                        default=5000, type=int)
+    parser.add_argument(
+        "--lr-warmup", dest="lr_warmup",
+        help="Learning rate warmup.",
+        default=5000, type=int,
+    )
 
-    parser.add_argument("--wide", dest="wide",
-                        help="Use wide self attention instead of narrow self attention.",
-                        action="store_true")
+    parser.add_argument(
+        "--wide", dest="wide",
+        help="Use wide self attention instead of narrow self attention.",
+        action="store_true",
+    )
 
     options = parser.parse_args()
 
     print('OPTIONS ', options)
 
     go(options)
+

@@ -1,16 +1,14 @@
-from former import util
-from util import mask_
+# vi: set ft=python sts=4 ts=4 sw=4 et:
 
 import torch
 from torch import nn
 import torch.nn.functional as F
 
-import random, math
+from util import mask_
 
 class SelfAttentionWide(nn.Module):
     def __init__(self, emb, heads=8, mask=False):
         """
-
         :param emb:
         :param heads:
         :param mask:
@@ -29,7 +27,7 @@ class SelfAttentionWide(nn.Module):
         self.unifyheads = nn.Linear(heads * emb, emb)
 
     def forward(self, x):
-
+        """Forward function."""
         b, t, e = x.size()
         h = self.heads
         assert e == self.emb, f'Input embedding dim ({e}) should match layer embedding dim ({self.emb})'
@@ -73,7 +71,6 @@ class SelfAttentionNarrow(nn.Module):
 
     def __init__(self, emb, heads=8, mask=False):
         """
-
         :param emb:
         :param heads:
         :param mask:
@@ -88,7 +85,8 @@ class SelfAttentionNarrow(nn.Module):
         self.mask = mask
 
         s = emb // heads
-        # - We will break the embedding into `heads` chunks and feed each to a different attention head
+        # - We will break the embedding into `heads` chunks and
+        # - feed each to a different attention head
 
         self.tokeys    = nn.Linear(s, s, bias=False)
         self.toqueries = nn.Linear(s, s, bias=False)
@@ -97,7 +95,7 @@ class SelfAttentionNarrow(nn.Module):
         self.unifyheads = nn.Linear(heads * s, emb)
 
     def forward(self, x):
-
+        """Forward function."""
         b, t, e = x.size()
         h = self.heads
         assert e == self.emb, f'Input embedding dim ({e}) should match layer embedding dim ({self.emb})'
@@ -145,12 +143,15 @@ class SelfAttentionNarrow(nn.Module):
         return self.unifyheads(out)
 
 class TransformerBlock(nn.Module):
-
-    def __init__(self, emb, heads, mask, seq_length, ff_hidden_mult=4, dropout=0.0, wide=True):
+    def __init__(self, emb, heads, mask, seq_length, ff_hidden_mult=4,
+                 dropout=0.0, wide=True):
         super().__init__()
 
-        self.attention = SelfAttentionWide(emb, heads=heads, mask=mask) if wide \
-                    else SelfAttentionNarrow(emb, heads=heads, mask=mask)
+        if wide:
+            self.attention = SelfAttentionWide(emb, heads=heads, mask=mask)
+        else:
+            self.attention = SelfAttentionNarrow(emb, heads=heads, mask=mask)
+
         self.mask = mask
 
         self.norm1 = nn.LayerNorm(emb)
