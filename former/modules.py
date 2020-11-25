@@ -6,6 +6,7 @@ import torch.nn.functional as F
 
 from util import mask_
 
+
 class SelfAttentionWide(nn.Module):
     def __init__(self, emb, heads=8, mask=False):
         """
@@ -38,26 +39,27 @@ class SelfAttentionWide(nn.Module):
 
         # compute scaled dot-product self-attention
 
-        # - fold heads into the batch dimension
+        # fold heads into the batch dimension
         keys = keys.transpose(1, 2).contiguous().view(b * h, t, e)
         queries = queries.transpose(1, 2).contiguous().view(b * h, t, e)
         values = values.transpose(1, 2).contiguous().view(b * h, t, e)
 
+        # Instead of dividing the dot products by sqrt(e), we scale the keys and values.
+        # This should be more memory efficient
         queries = queries / (e ** (1/4))
         keys    = keys / (e ** (1/4))
-        # - Instead of dividing the dot products by sqrt(e), we scale the keys and values.
-        #   This should be more memory efficient
 
         # - get dot product of queries and keys, and scale
         dot = torch.bmm(queries, keys.transpose(1, 2))
 
         assert dot.size() == (b*h, t, t)
 
-        if self.mask: # mask out the upper half of the dot matrix, excluding the diagonal
+        # mask out the upper half of the dot matrix, excluding the diagonal
+        if self.mask:
             mask_(dot, maskval=float('-inf'), mask_diagonal=False)
 
+        # dot now has row-wise self-attention probabilities
         dot = F.softmax(dot, dim=2)
-        # - dot now has row-wise self-attention probabilities
 
         # apply the self attention to the values
         out = torch.bmm(dot, values).view(b, h, t, e)
@@ -67,8 +69,8 @@ class SelfAttentionWide(nn.Module):
 
         return self.unifyheads(out)
 
-class SelfAttentionNarrow(nn.Module):
 
+class SelfAttentionNarrow(nn.Module):
     def __init__(self, emb, heads=8, mask=False):
         """
         :param emb:
@@ -142,6 +144,7 @@ class SelfAttentionNarrow(nn.Module):
 
         return self.unifyheads(out)
 
+
 class TransformerBlock(nn.Module):
     def __init__(self, emb, heads, mask, seq_length, ff_hidden_mult=4,
                  dropout=0.0, wide=True):
@@ -166,7 +169,7 @@ class TransformerBlock(nn.Module):
         self.do = nn.Dropout(dropout)
 
     def forward(self, x):
-
+        """Forward function."""
         attended = self.attention(x)
 
         x = self.norm1(attended + x)
@@ -180,3 +183,4 @@ class TransformerBlock(nn.Module):
         x = self.do(x)
 
         return x
+

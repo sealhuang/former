@@ -92,21 +92,29 @@ def go(arg):
 
     opt = torch.optim.Adam(lr=arg.lr, params=model.parameters())
     # linear learning rate warmup
-    sch = torch.optim.lr_scheduler.LambdaLR(opt, lambda i: min(i / (arg.lr_warmup / arg.batch_size), 1.0))
+    sch = torch.optim.lr_scheduler.LambdaLR(
+        opt,
+        lambda i: min(i / (arg.lr_warmup / arg.batch_size), 1.0),
+    )
 
     # training loop
-    # - note: we don't loop over the data, instead we sample a batch of random subsequences each time.
+    # note: we don't loop over the data, instead we sample a batch of
+    # random subsequences each time.
     for i in tqdm.trange(arg.num_batches):
 
         opt.zero_grad()
 
         # sample a batch of random subsequences
-        starts = torch.randint(size=(arg.batch_size, ), low=0, high=data_train.size(0) - arg.context - 1)
+        starts = torch.randint(
+            size=(arg.batch_size, ),
+            low=0,
+            high=data_train.size(0) - arg.context - 1,
+        )
+        # - target is the same sequence as source, except one character ahead
         seqs_source = [data_train[start  :start+arg.context  ] for start in starts]
         seqs_target = [data_train[start+1:start+arg.context+1] for start in starts]
         source = torch.cat([s[None, :] for s in seqs_source ], dim=0).to(torch.long)
         target = torch.cat([s[None, :] for s in seqs_target ], dim=0).to(torch.long)
-        # - target is the same sequence as source, except one character ahead
 
         if torch.cuda.is_available():
             source, target = source.cuda(), target.cuda()
@@ -115,7 +123,11 @@ def go(arg):
         output = model(source)
 
         loss = F.nll_loss(output.transpose(2, 1), target, reduction='mean')
-        tbw.add_scalar('transformer/train-loss', float(loss.item()) * LOG2E, i * arg.batch_size)
+        tbw.add_scalar(
+            'transformer/train-loss',
+            float(loss.item()) * LOG2E,
+            i * arg.batch_size,
+        )
 
         loss.backward()
 
@@ -137,7 +149,8 @@ def go(arg):
 
             with torch.no_grad():
                 bits, tot = 0.0, 0
-                batch = [] # buffer, every time it fills up, we run it through the model
+                # buffer, every time it fills up, we run it through the model
+                batch = []
 
                 for current in range(data_sub.size(0)):
 
@@ -146,7 +159,10 @@ def go(arg):
 
                     context = data_sub[fr:to].to(torch.long)
                     if context.size(0) < arg.context + 1:
-                        pad = torch.zeros(size=(arg.context + 1 - context.size(0),), dtype=torch.long)
+                        pad = torch.zeros(
+                            size=(arg.context + 1 - context.size(0),),
+                            dtype=torch.long,
+                        )
                         context = torch.cat([pad, context], dim=0)
 
                         assert context.size(0) == arg.context + 1
